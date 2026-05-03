@@ -1,0 +1,54 @@
+name: NSE Momentum Scanner
+
+on:
+  schedule:
+    # Runs at 7:40 PM IST daily (14:10 UTC)
+    - cron: '10 14 * * *'
+  workflow_dispatch:  # Manual trigger for testing
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install pandas requests numpy
+    
+    - name: Download Bhavcopy
+      run: python scripts/download_bhavcopy.py
+    
+    - name: Download Volatility Report
+      run: python scripts/download_volatility.py
+    
+    - name: Filter Equity Only
+      run: python scripts/filter_equity.py
+    
+    - name: Calculate Momentum Score
+      run: python scripts/calculate_momentum.py
+    
+    - name: Generate Final Report
+      run: python scripts/generate_report.py
+    
+    - name: Commit Results
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "NSE Scanner"
+        git add data/ output/
+        git commit -m "Daily scan: $(date '+%Y-%m-%d')" || echo "No changes"
+        git push
+    
+    - name: Upload Watchlist Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: nse-watchlist
+        path: output/
+        retention-days: 7
