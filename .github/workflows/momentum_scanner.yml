@@ -6,6 +6,11 @@ on:
     - cron: '10 14 * * *'
   workflow_dispatch:
 
+# Add write permissions
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   scan:
     runs-on: ubuntu-latest
