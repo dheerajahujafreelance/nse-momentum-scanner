@@ -3,9 +3,13 @@ name: NSE Momentum Scanner
 on:
   schedule:
     # Runs at 7:40 PM IST daily = 14:10 UTC
-    # Note: IST = UTC+5:30, so 19:40 IST = 14:10 UTC
     - cron: '10 14 * * *'
   workflow_dispatch:
+
+# Add write permissions
+permissions:
+  contents: write
+  actions: read
 
 jobs:
   scan:
@@ -14,6 +18,9 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Setup Python
       uses: actions/setup-python@v5
@@ -42,14 +49,7 @@ jobs:
     - name: Commit Results
       run: |
         git config --local user.email "action@github.com"
-        git config --local user.name "NSE Scanner"
+        git config --local user.name "github-actions"
         git add data/ output/
-        git commit -m "Daily scan: $(date '+%Y-%m-%d')" || echo "No changes"
+        git diff --staged --quiet || git commit -m "Daily scan: $(date '+%Y-%m-%d')"
         git push
-    
-    - name: Upload Watchlist Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: nse-watchlist
-        path: output/
-        retention-days: 7
