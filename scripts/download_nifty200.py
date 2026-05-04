@@ -11,7 +11,7 @@ def download_nifty200():
     """
     url = "https://nsearchives.nseindia.com/content/indices/ind_nifty200list.csv"
     
-    # Use a consistent filename
+    # Use consistent filename
     output_filename = "ind_nifty200list.csv"
     os.makedirs('data/reference', exist_ok=True)
     output_path = os.path.join('data/reference', output_filename)
@@ -50,7 +50,6 @@ def download_nifty200():
             return df
         else:
             print(f"❌ HTTP {response.status_code}: Could not download Nifty 200 list.")
-            print("   Please check the URL in a browser or try again later.")
             return None
             
     except Exception as e:
