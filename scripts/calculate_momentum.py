@@ -8,7 +8,7 @@ def load_equity_bhavcopy():
     """Load filtered equity bhavcopy"""
     files = glob.glob('data/filtered/equity_bhavcopy_*.csv')
     if not files:
-        raise FileNotFoundError("No equity bhavcopy found in data/filtered/")
+        raise FileNotFoundError("No bhavcopy file found in data/filtered/")
     latest = max(files)
     df = pd.read_csv(latest)
     print(f"📂 Loaded equity data: {len(df)} stocks")
@@ -36,46 +36,45 @@ def load_volatility_data():
             symbol_col = col
             break
     
-    # Find Volatility column - try exact match first, then partial match
+    # Find Volatility column
     vol_col = None
-    
-    # Exact column name from your CSV
-    exact_col = 'Current Day Underlying Daily Volatility (E) = Sqrt(0.995*D*D + 0.005*C*C)'
-    
-    if exact_col in vol_df.columns:
-        vol_col = exact_col
-        print(f"   ✅ Found exact volatility column")
-    else:
-        # Try partial matches
-        for col in vol_df.columns:
-            if 'Current Day Underlying Daily Volatility' in col:
-                vol_col = col
-                print(f"   ✅ Found volatility column: '{col}'")
-                break
-            elif 'Daily Volatility' in col:
-                vol_col = col
-                print(f"   ✅ Found volatility column: '{col}'")
-                break
+    for col in vol_df.columns:
+        if 'Current Day Underlying Daily Volatility' in col:
+            vol_col = col
+            break
     
     if symbol_col and vol_col:
-        # Rename columns for easier access
-        vol_df = vol_df.rename(columns={symbol_col: 'SYMBOL', vol_col: 'VOLATILITY_DAILY'})
+        # Rename columns
+        vol_df = vol_df.rename(columns={symbol_col: 'SYMBOL', vol_col: 'VOLATILITY_DAILY_RAW'})
         print(f"   Using SYMBOL column: '{symbol_col}'")
         print(f"   Using VOLATILITY column: '{vol_col}'")
-        print(f"   Volatility range: {vol_df['VOLATILITY_DAILY'].min():.6f} - {vol_df['VOLATILITY_DAILY'].max():.6f}")
+        
+        # Convert VOLATILITY to numeric (handle string values)
+        # First, check the data type
+        print(f"   Volatility column dtype: {vol_df['VOLATILITY_DAILY_RAW'].dtype}")
+        print(f"   Sample values: {vol_df['VOLATILITY_DAILY_RAW'].head(3).tolist()}")
+        
+        # Convert to numeric, coercing errors to NaN
+        vol_df['VOLATILITY_DAILY'] = pd.to_numeric(vol_df['VOLATILITY_DAILY_RAW'], errors='coerce')
+        
+        # Drop rows where volatility is NaN
+        before_drop = len(vol_df)
+        vol_df = vol_df.dropna(subset=['VOLATILITY_DAILY'])
+        print(f"   Dropped {before_drop - len(vol_df)} rows with non-numeric volatility")
+        
+        # Clean SYMBOL column
+        vol_df['SYMBOL'] = vol_df['SYMBOL'].astype(str).str.strip().str.upper()
         
         # Keep only necessary columns
         vol_df = vol_df[['SYMBOL', 'VOLATILITY_DAILY']]
         
-        # Clean SYMBOL column (remove any whitespace)
-        vol_df['SYMBOL'] = vol_df['SYMBOL'].astype(str).str.strip().str.upper()
+        print(f"   Volatility range: {vol_df['VOLATILITY_DAILY'].min():.6f} - {vol_df['VOLATILITY_DAILY'].max():.6f}")
         
         return vol_df
     else:
         print(f"⚠️ Could not find required columns.")
         print(f"   Symbol column found: {symbol_col}")
         print(f"   Volatility column found: {vol_col}")
-        print(f"   Available columns: {list(vol_df.columns)}")
         return None
 
 def calculate_momentum_indicators(df):
@@ -117,6 +116,8 @@ def calculate_momentum_indicators(df):
     
     # 4. Volume momentum
     if vol_col in df.columns:
+        # Convert volume to numeric just in case
+        df[vol_col] = pd.to_numeric(df[vol_col], errors='coerce').fillna(0)
         median_vol = df[vol_col].median()
         if median_vol > 0:
             df['MOMENTUM_VOLUME'] = (df[vol_col] / median_vol) * 50
@@ -163,6 +164,7 @@ def combine_with_volatility(df, vol_df):
     else:
         print("⚠️ No volatility data - using default score 50")
         df['SCORE_VOLATILITY'] = 50
+        df['VOLATILITY_DAILY'] = 0
     
     return df
 
@@ -182,7 +184,8 @@ def calculate_final_score(df):
     
     for metric, weight in weights.items():
         if metric in df.columns:
-            series = df[metric].fillna(0)
+            # Convert to numeric, ensure proper type
+            series = pd.to_numeric(df[metric], errors='coerce').fillna(0)
             
             # Clip outliers to 1st and 99th percentiles
             q01 = series.quantile(0.01)
@@ -207,6 +210,13 @@ def calculate_final_score(df):
     )
     
     return df
+
+def safe_float_convert(value):
+    """Safely convert to float for display"""
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return 0.0
 
 def main():
     print("\n" + "="*60)
@@ -262,7 +272,7 @@ def main():
         print(f"   BUY: {len(df[df['RECOMMENDATION'] == 'BUY'])}")
         print(f"   HOLD: {len(df[df['RECOMMENDATION'] == 'HOLD'])}")
         
-        if 'VOLATILITY_DAILY' in df.columns and len(df) > 0:
+        if 'VOLATILITY_DAILY' in df.columns:
             non_zero_vol = df[df['VOLATILITY_DAILY'] > 0]['VOLATILITY_DAILY']
             if len(non_zero_vol) > 0:
                 print(f"\n📈 Volatility Statistics (Daily):")
@@ -274,8 +284,11 @@ def main():
             print(f"\n🏆 TOP 5 MOMENTUM STOCKS:")
             print("-" * 60)
             for idx, row in top10.head().iterrows():
-                vol_text = f"{row['VOLATILITY_DAILY']:.4f}" if 'VOLATILITY_DAILY' in row else "N/A"
-                print(f"   {row['SYMBOL']}: {row['MOMENTUM_PRICE']:+.2f}% (Vol: {vol_text}, Score: {row['FINAL_SCORE']:.0f})")
+                symbol = row['SYMBOL']
+                price_change = safe_float_convert(row.get('MOMENTUM_PRICE', 0))
+                vol = safe_float_convert(row.get('VOLATILITY_DAILY', 0))
+                score = safe_float_convert(row.get('FINAL_SCORE', 0))
+                print(f"   {symbol}: {price_change:+.2f}% (Vol: {vol:.6f}, Score: {score:.0f})")
         
     except Exception as e:
         print(f"❌ Error in calculation: {e}")
