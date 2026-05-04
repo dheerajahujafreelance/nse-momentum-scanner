@@ -2,9 +2,10 @@ name: NSE Momentum Scanner
 
 on:
   schedule:
-    # Runs at 7:40 PM IST daily (14:10 UTC)
+    # Runs at 7:40 PM IST daily = 14:10 UTC
+    # Note: IST = UTC+5:30, so 19:40 IST = 14:10 UTC
     - cron: '10 14 * * *'
-  workflow_dispatch:  # Manual trigger for testing
+  workflow_dispatch:
 
 jobs:
   scan:
