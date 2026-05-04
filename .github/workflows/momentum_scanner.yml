@@ -6,11 +6,6 @@ on:
     - cron: '10 14 * * *'
   workflow_dispatch:
 
-# Add write permissions
-permissions:
-  contents: write
-  actions: read
-
 jobs:
   scan:
     runs-on: ubuntu-latest
@@ -18,9 +13,6 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-        token: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Setup Python
       uses: actions/setup-python@v5
@@ -31,14 +23,17 @@ jobs:
       run: |
         pip install pandas requests numpy
     
+    - name: Download Nifty 200 List
+      run: python scripts/download_nifty200.py
+    
     - name: Download Bhavcopy
       run: python scripts/download_bhavcopy.py
     
     - name: Download Volatility Report
       run: python scripts/download_volatility.py
     
-    - name: Filter Equity Only
-      run: python scripts/filter_equity.py
+    - name: Filter Nifty 200 Stocks
+      run: python scripts/filter_nifty200.py
     
     - name: Calculate Momentum Score
       run: python scripts/calculate_momentum.py
@@ -46,10 +41,9 @@ jobs:
     - name: Generate Final Report
       run: python scripts/generate_report.py
     
-    - name: Commit Results
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "github-actions"
-        git add data/ output/
-        git diff --staged --quiet || git commit -m "Daily scan: $(date '+%Y-%m-%d')"
-        git push
+    - name: Upload Watchlist Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: nse-watchlist
+        path: output/
+        retention-days: 7
