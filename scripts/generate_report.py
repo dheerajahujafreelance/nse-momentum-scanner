@@ -1,6 +1,13 @@
 import pandas as pd
 from datetime import datetime
 
+def safe_float_convert(value):
+    """Safely convert to float for display"""
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return 0.0
+
 def generate_trading_report():
     """Create markdown report for easy reading"""
     
@@ -51,13 +58,13 @@ def generate_trading_report():
 
     for idx, row in watchlist.head(10).iterrows():
         symbol = row.get('SYMBOL', 'N/A')
-        close = row.get('CLOSE_PRICE', 0)
-        price_change = row.get('MOMENTUM_PRICE', 0) if 'MOMENTUM_PRICE' in row else 0
-        daily_vol = row.get('VOLATILITY_DAILY', 0) if 'VOLATILITY_DAILY' in row else 0
-        score = row.get('FINAL_SCORE', 0)
+        close = safe_float_convert(row.get('CLOSE_PRICE', 0))
+        price_change = safe_float_convert(row.get('MOMENTUM_PRICE', 0)) if 'MOMENTUM_PRICE' in row else 0
+        daily_vol = safe_float_convert(row.get('VOLATILITY_DAILY', 0)) if 'VOLATILITY_DAILY' in row else 0
+        score = safe_float_convert(row.get('FINAL_SCORE', 0))
         rec = row.get('RECOMMENDATION', 'HOLD')
         
-        vol_percent = daily_vol * 100 if daily_vol < 1 else daily_vol
+        vol_percent = daily_vol * 100
         
         report += f"| {idx+1} | **{symbol}** | {close:.2f} | {price_change:+.2f}% | {vol_percent:.2f}% | {score:.0f} | {rec} |\n"
     
@@ -86,9 +93,10 @@ Stocks with significant daily volatility from watchlist:
         high_vol_watchlist = watchlist.nlargest(5, 'VOLATILITY_DAILY')
         
         for idx, row in high_vol_watchlist.iterrows():
-            vol_val = row.get('VOLATILITY_DAILY', 0)
-            vol_percent = vol_val * 100 if vol_val < 1 else vol_val
-            report += f"- **{row.get('SYMBOL', 'N/A')}**: Daily Vol {vol_percent:.2f}% (Momentum Score: {row.get('FINAL_SCORE', 0):.0f})\n"
+            vol_val = safe_float_convert(row.get('VOLATILITY_DAILY', 0))
+            vol_percent = vol_val * 100
+            score = safe_float_convert(row.get('FINAL_SCORE', 0))
+            report += f"- **{row.get('SYMBOL', 'N/A')}**: Daily Vol {vol_percent:.2f}% (Momentum Score: {score:.0f})\n"
     else:
         report += "No high volatility stocks in watchlist\n"
 
