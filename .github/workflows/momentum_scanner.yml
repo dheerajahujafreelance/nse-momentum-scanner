@@ -11,6 +11,7 @@ permissions:
   contents: write
   actions: read
 
+
 jobs:
   scan:
     runs-on: ubuntu-latest
@@ -46,9 +47,11 @@ jobs:
     - name: Generate Final Report
       run: python scripts/generate_report.py
     
-    - name: Upload Watchlist Artifact
+    - name: Upload Watchlist Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: nse-watchlist
-        path: output/
+        name: nse-watchlist-$(date +'%Y%m%d_%H%M%S')
+        path: |
+          output/*.csv
+          output/*.md
         retention-days: 7
