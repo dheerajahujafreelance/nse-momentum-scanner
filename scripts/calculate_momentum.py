@@ -29,46 +29,69 @@ def load_volatility_data():
     print(f"📂 Loaded volatility data: {len(vol_df)} securities")
     print(f"   Columns available: {list(vol_df.columns)}")
     
-    # Try different possible column names for Symbol
+    # Find Symbol column (case insensitive)
     symbol_col = None
-    for col in ['Symbol', 'SYMBOL', 'symbol']:
-        if col in vol_df.columns:
+    for col in vol_df.columns:
+        if col.lower() == 'symbol':
             symbol_col = col
             break
     
-    # Try different possible column names for volatility
+    # Find Volatility column - try exact match first, then partial match
     vol_col = None
-    possible_vol_cols = [
-        'Current Day Underlying Daily Volatility (E)',
-        'Current Day Underlying Daily Volatility',
-        'Current Day Underlying Daily Volatility E',
-        'E'
-    ]
     
-    for col in possible_vol_cols:
-        if col in vol_df.columns:
-            vol_col = col
-            break
+    # Exact column name from your CSV
+    exact_col = 'Current Day Underlying Daily Volatility (E) = Sqrt(0.995*D*D + 0.005*C*C)'
+    
+    if exact_col in vol_df.columns:
+        vol_col = exact_col
+        print(f"   ✅ Found exact volatility column")
+    else:
+        # Try partial matches
+        for col in vol_df.columns:
+            if 'Current Day Underlying Daily Volatility' in col:
+                vol_col = col
+                print(f"   ✅ Found volatility column: '{col}'")
+                break
+            elif 'Daily Volatility' in col:
+                vol_col = col
+                print(f"   ✅ Found volatility column: '{col}'")
+                break
     
     if symbol_col and vol_col:
-        vol_df = vol_df[[symbol_col, vol_col]].rename(columns={symbol_col: 'SYMBOL', vol_col: 'VOLATILITY_DAILY'})
-        print(f"   ✅ Using volatility column: '{vol_col}'")
+        # Rename columns for easier access
+        vol_df = vol_df.rename(columns={symbol_col: 'SYMBOL', vol_col: 'VOLATILITY_DAILY'})
+        print(f"   Using SYMBOL column: '{symbol_col}'")
+        print(f"   Using VOLATILITY column: '{vol_col}'")
         print(f"   Volatility range: {vol_df['VOLATILITY_DAILY'].min():.6f} - {vol_df['VOLATILITY_DAILY'].max():.6f}")
+        
+        # Keep only necessary columns
+        vol_df = vol_df[['SYMBOL', 'VOLATILITY_DAILY']]
+        
+        # Clean SYMBOL column (remove any whitespace)
+        vol_df['SYMBOL'] = vol_df['SYMBOL'].astype(str).str.strip().str.upper()
+        
         return vol_df
     else:
-        print(f"⚠️ Could not find required columns. Symbol col: {symbol_col}, Vol col: {vol_col}")
+        print(f"⚠️ Could not find required columns.")
+        print(f"   Symbol column found: {symbol_col}")
+        print(f"   Volatility column found: {vol_col}")
+        print(f"   Available columns: {list(vol_df.columns)}")
         return None
 
 def calculate_momentum_indicators(df):
     """Calculate multiple momentum indicators from bhavcopy data"""
     
-    # Determine column names (handle variations)
+    # Determine column names
     close_col = 'CLOSE_PRICE' if 'CLOSE_PRICE' in df.columns else 'CLOSE'
     prev_close_col = 'PREV_CLOSE' if 'PREV_CLOSE' in df.columns else 'PREVCLOSE'
     open_col = 'OPEN_PRICE' if 'OPEN_PRICE' in df.columns else 'OPEN'
     high_col = 'HIGH_PRICE' if 'HIGH_PRICE' in df.columns else 'HIGH'
     low_col = 'LOW_PRICE' if 'LOW_PRICE' in df.columns else 'LOW'
     vol_col = 'TTL_TRD_QNTY' if 'TTL_TRD_QNTY' in df.columns else 'TOTTRDQTY'
+    
+    # Clean SYMBOL column for merging
+    if 'SYMBOL' in df.columns:
+        df['SYMBOL'] = df['SYMBOL'].astype(str).str.strip().str.upper()
     
     # 1. Price momentum
     if prev_close_col in df.columns:
@@ -109,18 +132,29 @@ def combine_with_volatility(df, vol_df):
     """Merge momentum scores with daily volatility data"""
     
     if vol_df is not None and 'VOLATILITY_DAILY' in vol_df.columns:
+        print(f"   Before merge: equity {len(df)} rows, volatility {len(vol_df)} rows")
+        
         # Merge on SYMBOL
         df = df.merge(vol_df, on='SYMBOL', how='left')
         
+        print(f"   After merge: {len(df)} rows")
+        print(f"   Volatility data present for {df['VOLATILITY_DAILY'].notna().sum()} stocks")
+        
         if 'VOLATILITY_DAILY' in df.columns:
+            # Fill NaN with 0
             df['VOLATILITY_DAILY'] = df['VOLATILITY_DAILY'].fillna(0)
             
-            # Cap at 95th percentile to handle outliers
-            max_vol = df['VOLATILITY_DAILY'].quantile(0.95)
-            if max_vol > 0:
-                df['SCORE_VOLATILITY'] = (df['VOLATILITY_DAILY'] / max_vol) * 100
+            # Cap at 95th percentile to handle outliers (only for non-zero values)
+            non_zero_vol = df[df['VOLATILITY_DAILY'] > 0]['VOLATILITY_DAILY']
+            if len(non_zero_vol) > 0:
+                max_vol = non_zero_vol.quantile(0.95)
+                if max_vol > 0:
+                    df['SCORE_VOLATILITY'] = (df['VOLATILITY_DAILY'] / max_vol) * 100
+                else:
+                    df['SCORE_VOLATILITY'] = 50
             else:
                 df['SCORE_VOLATILITY'] = 50
+                
             df['SCORE_VOLATILITY'] = df['SCORE_VOLATILITY'].clip(0, 100).fillna(50)
             
             print(f"   Volatility score range: {df['SCORE_VOLATILITY'].min():.1f} - {df['SCORE_VOLATILITY'].max():.1f}")
@@ -229,15 +263,19 @@ def main():
         print(f"   HOLD: {len(df[df['RECOMMENDATION'] == 'HOLD'])}")
         
         if 'VOLATILITY_DAILY' in df.columns and len(df) > 0:
-            print(f"\n📈 Volatility Statistics (Daily):")
-            print(f"   Mean: {df['VOLATILITY_DAILY'].mean():.6f}")
-            print(f"   Median: {df['VOLATILITY_DAILY'].median():.6f}")
+            non_zero_vol = df[df['VOLATILITY_DAILY'] > 0]['VOLATILITY_DAILY']
+            if len(non_zero_vol) > 0:
+                print(f"\n📈 Volatility Statistics (Daily):")
+                print(f"   Mean: {non_zero_vol.mean():.6f}")
+                print(f"   Median: {non_zero_vol.median():.6f}")
+                print(f"   Max: {non_zero_vol.max():.6f}")
         
         if len(top10) > 0:
             print(f"\n🏆 TOP 5 MOMENTUM STOCKS:")
             print("-" * 60)
             for idx, row in top10.head().iterrows():
-                print(f"   {row['SYMBOL']}: {row['MOMENTUM_PRICE']:+.2f}% (Score: {row['FINAL_SCORE']:.0f})")
+                vol_text = f"{row['VOLATILITY_DAILY']:.4f}" if 'VOLATILITY_DAILY' in row else "N/A"
+                print(f"   {row['SYMBOL']}: {row['MOMENTUM_PRICE']:+.2f}% (Vol: {vol_text}, Score: {row['FINAL_SCORE']:.0f})")
         
     except Exception as e:
         print(f"❌ Error in calculation: {e}")
