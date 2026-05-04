@@ -2,15 +2,12 @@ import pandas as pd
 from datetime import datetime
 
 def safe_float_convert(value):
-    """Safely convert to float for display"""
     try:
         return float(value)
     except (ValueError, TypeError):
         return 0.0
 
 def generate_trading_report():
-    """Create markdown report for easy reading"""
-    
     print("\n" + "="*50)
     print("GENERATING TRADING REPORT")
     print("="*50)
@@ -23,120 +20,49 @@ def generate_trading_report():
         return
     
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    analysis_date = datetime.now().strftime('%d %B %Y')
     
-    # Calculate summary stats
-    strong_buy_count = len(all_stocks[all_stocks['RECOMMENDATION'] == 'STRONG_BUY'])
-    buy_count = len(all_stocks[all_stocks['RECOMMENDATION'] == 'BUY'])
-    hold_count = len(all_stocks[all_stocks['RECOMMENDATION'] == 'HOLD'])
+    strong_buy = len(all_stocks[all_stocks['RECOMMENDATION'] == 'STRONG_BUY'])
+    buy = len(all_stocks[all_stocks['RECOMMENDATION'] == 'BUY'])
     
-    report = f"""# 📈 NSE Momentum + Daily Volatility (E) Watchlist
-**Generated:** {timestamp} IST  
-**Analysis Date:** {analysis_date}
+    report = f"""# 📈 NIFTY 200 Momentum + Volatility Watchlist
+**Generated:** {timestamp} IST
 
----
+## 🎯 Universe: NIFTY 200 Stocks Only
 
-## 🎯 Strategy Logic
+This scan focuses only on **Nifty 200 constituents** - highly liquid, institutional-grade stocks.
 
-| Component | Weight | Description |
-|-----------|--------|-------------|
-| **Price Momentum** | 35% | Today's close vs previous close |
-| **Intraday Strength** | 20% | Close vs Open (buying pressure) |
-| **Range Breakout** | 15% | Closing near day's high |
-| **Volume** | 15% | Higher than average volume |
-| **Daily Volatility (E)** | 15% | Current day underlying daily volatility |
+## 🔥 Top 10 Momentum Stocks
 
-> **Note:** We use `Current Day Underlying Daily Volatility (E)` which represents today's estimated daily volatility.
-
----
-
-## 🔥 Top 10 Momentum Stocks for Tomorrow
-
-| # | Symbol | Close (₹) | Price Change % | Daily Vol (E) | Score | Action |
-|---|--------|-----------|----------------|---------------|-------|--------|
+| # | Symbol | Close (₹) | Change % | Daily Vol | Score | Action |
+|---|--------|----------|----------|-----------|-------|--------|
 """
-
     for idx, row in watchlist.head(10).iterrows():
         symbol = row.get('SYMBOL', 'N/A')
         close = safe_float_convert(row.get('CLOSE_PRICE', 0))
-        price_change = safe_float_convert(row.get('MOMENTUM_PRICE', 0)) if 'MOMENTUM_PRICE' in row else 0
-        daily_vol = safe_float_convert(row.get('VOLATILITY_DAILY', 0)) if 'VOLATILITY_DAILY' in row else 0
+        change = safe_float_convert(row.get('MOMENTUM_PRICE', 0))
+        vol = safe_float_convert(row.get('VOLATILITY_DAILY', 0)) * 100
         score = safe_float_convert(row.get('FINAL_SCORE', 0))
         rec = row.get('RECOMMENDATION', 'HOLD')
-        
-        vol_percent = daily_vol * 100
-        
-        report += f"| {idx+1} | **{symbol}** | {close:.2f} | {price_change:+.2f}% | {vol_percent:.2f}% | {score:.0f} | {rec} |\n"
+        report += f"| {idx+1} | **{symbol}** | {close:.2f} | {change:+.2f}% | {vol:.2f}% | {score:.0f} | {rec} |\n"
     
     report += f"""
 
----
-
-## 📊 Summary Statistics
+## 📊 Summary
 
 | Metric | Value |
 |--------|-------|
-| Total Equity Stocks Analyzed | {len(all_stocks):,} |
-| **STRONG_BUY** Candidates | {strong_buy_count} |
-| **BUY** Candidates | {buy_count} |
-| **HOLD** Candidates | {hold_count} |
+| Nifty 200 Stocks Analyzed | {len(all_stocks)} |
+| **STRONG_BUY** | {strong_buy} |
+| **BUY** | {buy} |
 
 ---
-
-## 📈 High Volatility Confirmation (Top 5)
-
-Stocks with significant daily volatility from watchlist:
-
-"""
-
-    if 'VOLATILITY_DAILY' in all_stocks.columns and len(watchlist) > 0:
-        high_vol_watchlist = watchlist.nlargest(5, 'VOLATILITY_DAILY')
-        
-        for idx, row in high_vol_watchlist.iterrows():
-            vol_val = safe_float_convert(row.get('VOLATILITY_DAILY', 0))
-            vol_percent = vol_val * 100
-            score = safe_float_convert(row.get('FINAL_SCORE', 0))
-            report += f"- **{row.get('SYMBOL', 'N/A')}**: Daily Vol {vol_percent:.2f}% (Momentum Score: {score:.0f})\n"
-    else:
-        report += "No high volatility stocks in watchlist\n"
-
-    report += f"""
-
----
-
-## 📋 How to Use This Report
-
-1. **STRONG_BUY (Score > 75)**: High momentum + good volatility - consider for next day
-2. **BUY (Score 60-75)**: Positive momentum - watch for entry
-3. **HOLD (Score 40-60)**: Consolidating - wait for breakout
-4. **Daily Volatility (E)**: Higher values (>3%) suggest genuine price expansion
-
----
-
-## ⚠️ Disclaimer
-
-This is an **automated scan** based on:
-- NSE Bhavcopy (Price, Volume data)
-- NSE Daily Volatility Report - **Current Day Underlying Daily Volatility (E)**
-
-**Always do your own research** before trading. Past performance does not guarantee future results.
-
----
-*Generated by NSE Automated Scanner*  
-*Next run: Tomorrow at 7:40 PM IST*
+*Nifty 200 Momentum Scanner | Next run: Tomorrow 7:40 PM IST*
 """
     
-    # Save report
     with open('output/daily_report.md', 'w', encoding='utf-8') as f:
         f.write(report)
     
-    print(f"✅ Trading report generated: output/daily_report.md")
-    print(f"   Watchlist contains {len(watchlist)} stocks")
-    
-    # Also generate a simple CSV with volatility info
-    if len(watchlist) > 0 and 'VOLATILITY_DAILY' in watchlist.columns:
-        watchlist[['SYMBOL', 'CLOSE_PRICE', 'MOMENTUM_PRICE', 'VOLATILITY_DAILY', 'FINAL_SCORE', 'RECOMMENDATION']].to_csv('output/watchlist_with_vol.csv', index=False)
-        print(f"   Watchlist with volatility saved: output/watchlist_with_vol.csv")
+    print(f"✅ Report generated: {len(watchlist)} stocks in watchlist")
 
 if __name__ == "__main__":
     generate_trading_report()
