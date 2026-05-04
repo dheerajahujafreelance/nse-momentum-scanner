@@ -1,44 +1,34 @@
-# NSE Momentum Scanner
+# NSE Nifty 200 Momentum Scanner
 
-Automated daily scanner that downloads NSE Bhavcopy and Volatility reports, filters equity stocks, and generates momentum scores for next-day trading.
+Automated daily scanner for Nifty 200 stocks.
 
 ## Features
 
-- **Daily Automated Run**: Runs at 7:40 PM IST every trading day
-- **Downloads from Official NSE Archives**: 
-  - Bhavcopy: `https://nsearchives.nseindia.com/products/content/sec_bhavdata_full_{DDMMYYYY}.csv`
-  - Volatility: `https://nsearchives.nseindia.com/archives/nsccl/volt/CMVOLT_{DDMMYYYY}.CSV`
-- **Equity Only Filter**: Excludes ETFs, indices, mutual funds
-- **Momentum Scoring**: Weighted score using price, intraday strength, range breakout, volume, and daily volatility
-- **Actionable Output**: Generates watchlist with BUY/STRONG_BUY recommendations
-
-## Scoring Weights
-
-| Component | Weight |
-|-----------|--------|
-| Price Momentum | 35% |
-| Intraday Strength | 20% |
-| Range Breakout | 15% |
-| Volume Momentum | 15% |
-| Daily Volatility (E) | 15% |
+- Downloads Nifty 200 constituents list
+- Downloads NSE Bhavcopy and Volatility reports
+- Filters only Nifty 200 equity stocks
+- Calculates momentum scores
+- Generates timestamped MD reports
+- Top 30 buy recommendations
 
 ## Output Files
 
-- `output/watchlist.csv` - Top 30 momentum stocks
-- `output/top_10_momentum.csv` - Top 10 for quick reference
-- `output/all_stocks_ranked.csv` - Complete ranking
-- `output/daily_report.md` - Formatted markdown report
+- `top_30_buy_watchlist.csv` - Top 30 momentum stocks
+- `top_10_momentum.csv` - Top 10 quick reference
+- `all_stocks_ranked.csv` - Complete ranking
+- `nifty200_momentum_report_*.md` - Timestamped report
 
-## Setup
+## Schedule
 
-1. Clone this repository
-2. Push to GitHub
-3. GitHub Actions will run automatically daily at 7:40 PM IST
+Runs daily at 7:40 PM IST
 
 ## Manual Run
 
-Go to Actions → "NSE Momentum Scanner" → "Run workflow"
-
-## Disclaimer
-
-For educational purposes only. Not financial advice.
+```bash
+python scripts/clean_folders.py
+python scripts/download_nifty200.py
+python scripts/download_bhavcopy.py
+python scripts/download_volatility.py
+python scripts/filter_nifty200.py
+python scripts/calculate_momentum.py
+python scripts/generate_report.py
