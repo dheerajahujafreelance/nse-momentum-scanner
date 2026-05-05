@@ -2,8 +2,7 @@ name: NSE Momentum Scanner
 
 on:
   schedule:
-    # Runs at 7:40 PM IST daily = 14:10 UTC
-    - cron: '10 14 * * *'
+    - cron: '10 14 * * *'  # 7:40 PM IST
   workflow_dispatch:
 
 # Add write permissions
@@ -49,6 +48,12 @@ jobs:
     
     - name: Generate Final Report
       run: python scripts/generate_report.py
+    
+    - name: Send to Telegram
+      env:
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: python scripts/send_telegram.py
     
     - name: Upload Watchlist Artifacts
       uses: actions/upload-artifact@v4
