@@ -2,7 +2,9 @@ name: NSE Momentum Scanner
 
 on:
   schedule:
-     - cron: '*/15 * * * *'   # Every 15 minutes (minimum reliable interval)
+    - cron: '40 19 * * *'     # 19:40 in the specified timezone
+      timezone: 'Asia/Kolkata'   # IST
+
 #    - cron: '10 14 * * *'  # 7:40 PM IST
   workflow_dispatch:
 
